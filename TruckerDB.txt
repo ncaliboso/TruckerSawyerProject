@@ -1,0 +1,452 @@
+Imports System.Data
+Imports System.Data.SqlClient
+Public Class SawyerLumber
+    Inherits System.Web.UI.Page
+#Region "Variables"
+    Public Shared con As New SqlConnection("Data Source = cb-ot-devst04.ad.wsu.edu;Initial Catalog= MF325191henrylevis;Persist Security Info = True;User ID = henrylevis;Password = !@#qWe11513523")
+
+    Public Shared daTruckers As New SqlDataAdapter("SELECT * FROM henrylevis.Truck", con)
+    Public Shared cbTruckers As New SqlCommandBuilder(daTruckers)
+    Public Shared dtTruckers As New DataTable
+    Public Shared dtTruckersforDDL As New DataTable
+
+    Public Shared daSawyers As New SqlDataAdapter("SELECT * FROM henrylevis.Saw", con)
+    Public Shared cdSawyers As New SqlCommandBuilder(daSawyers)
+    Public Shared dtSawyers As New DataTable
+    Public Shared dtSawyersforDDL As New DataTable
+
+    Public Shared daDelivery As New SqlDataAdapter("SELECT * FROM henrylevis.Del", con)
+    Public Shared cdDelivery As New SqlCommandBuilder(daDelivery)
+    Public Shared dtDelivery As New DataTable
+
+    Public Shared gdTotalPayout As Decimal
+#End Region
+#Region "Page Intilization"
+    Private Sub SawyerLumber_Init(sender As Object, e As EventArgs) Handles Me.Init
+
+        daTruckers.FillSchema(dtTruckers, SchemaType.Mapped)
+        daSawyers.FillSchema(dtSawyers, SchemaType.Mapped)
+        daDelivery.FillSchema(dtDelivery, SchemaType.Mapped)
+
+        'Ensures that upon Page/Init it only runs the table for the dropdown lists once
+        If dtTruckersforDDL.Rows.Count > 0 Then dtTruckersforDDL.Rows.Clear()
+        If dtSawyersforDDL.Rows.Count > 0 Then dtTruckersforDDL.Rows.Clear()
+
+        'fills the trucker DDL
+        Try
+            daTruckers.Fill(dtTruckersforDDL)
+            With ddlTrucker
+                .DataSource = dtTruckersforDDL
+                .DataTextField = "TruckerName"
+                .DataValueField = "TruckerID"
+                .DataBind()
+                .Items.Insert(0, "Select a trucker.")
+            End With
+
+        Catch ex As Exception
+            Response.Write(ex.Message)
+        End Try
+
+        'Fills data for the Sawyers dropdown list
+        Try
+            daSawyers.Fill(dtSawyersforDDL)
+            With ddlSawyer
+                .DataSource = dtSawyersforDDL
+                .DataTextField = "SawyerID"
+                .DataValueField = "SawyerID"
+                .DataBind()
+                .Items.Insert(0, "Select a sawyer.")
+            End With
+        Catch ex As Exception
+            Response.Write(ex.Message)
+        End Try
+
+    End Sub
+#End Region
+#Region "Enter Truckers and Sawyers"
+
+
+    Protected Sub btnEnter_click(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
+
+
+        If dtTruckers.Rows.Count > 0 Then dtTruckers.Rows.Clear()
+        'This allows new truckers to be added to the truckers table
+
+
+        If txtTruckerName.Text = Nothing OrElse txtTruckerDate.Text = Nothing Then
+            txtTruckerRemarks.Text = "Please Review Submission"
+            Exit Sub
+        End If
+
+        Dim dr As DataRow = dtTruckers.NewRow
+
+        dr.Item("TruckerName") = txtTruckerName.Text
+        dr.Item("VIP") = chkVIP.Checked
+        dr.Item("Phone") = txtTruckerPhone.Text
+        dr.Item("Remarks") = txtTruckerRemarks.Text
+        dr.Item("NumberDeliveries") = 0
+        dr.Item("TotalPayouts") = 0
+        dr.Item("TotalPoundsDelivered") = 0
+        dtTruckers.Rows.Add(dr)
+
+        Try
+            daTruckers.Update(dtTruckers)
+            dtTruckers.Rows.Clear()
+            daTruckers.Fill(dtTruckers)
+            GridView2.DataSource = dtTruckers
+            GridView2.DataBind()
+
+        Catch ex As Exception
+            Response.Write(ex.Message)
+        End Try
+    End Sub
+
+
+    Protected Sub btnEnterSawyers_Click(sender As Object, e As EventArgs) Handles btnEnterSawyers.Click
+        'This allows new sawyers to be added to the sawyer table 
+
+
+
+        If txtSawyerName.Text = Nothing OrElse txtSawyerDate.Text = Nothing Then
+            txtSawyerRemarks.Text = "Please Review Submission"
+            Exit Sub
+        End If
+
+        Dim dr As DataRow = dtSawyers.NewRow
+
+        dr.Item("SawyerName") = txtSawyerName.Text
+        dr.Item("Phone") = txtSawyerPhone.Text
+        dr.Item("Remarks") = txtSawyerRemarks.Text
+        dr.Item("NumberDeliveries") = 0
+        dr.Item("TotalPayouts") = 0
+        dr.Item("TotalPoundsDelivered") = 0
+        dtSawyers.Rows.Add(dr)
+
+        Try
+            daSawyers.Update(dtSawyers) 'this runs the insert record SQL code
+            dtSawyers.Rows.Clear()
+            daSawyers.Fill(dtSawyers)
+            GridView3.DataSource = dtSawyers
+            GridView3.DataBind()
+        Catch ex As Exception
+            Response.Write(ex.Message)
+        End Try
+    End Sub
+#End Region
+#Region "Update Truckers and Sawyers"
+    Protected Sub UpdateTrucker()
+        'This updates the trucker table
+        Dim cmdUpdateTrucker As New SqlCommand("UPDATE henrylevis.Truck SET NumberDeliveries += 1, TotalPayouts += @p1, TotalPoundsDelivered += @p2 WHERE TruckerID = @p3", con)
+
+        ‘Sets parameters for Trucker table
+        With cmdUpdateTrucker.Parameters
+            .Clear()
+            .AddWithValue("@p1", gdTotalPayout * (0.3))
+            .AddWithValue("@p2", Convert.ToDecimal(txtWeight.Text))
+            .AddWithValue("@p3", CInt(ddlTrucker.SelectedValue))
+        End With
+
+        'Connection information
+        Try
+            If con.State = ConnectionState.Closed Then con.Open()
+            cmdUpdateTrucker.ExecuteNonQuery()
+        Catch ex As Exception
+            Response.Write(ex.Message)
+        Finally
+            con.Close()
+        End Try
+
+    End Sub
+
+    Protected Sub UpdateSawyers()
+        'This updates the sawyers table
+        Dim cmdUpdateSawyer As New SqlCommand("UPDATE henrylevis.Saw SET NumberDeliveries += 1, TotalPayouts += @p1, TotalPoundsDelivered += @p2 WHERE SawyerID = @p3", con)
+
+
+        'parameters for the update
+        With cmdUpdateSawyer.Parameters
+            .Clear()
+            .AddWithValue("@p1", Convert.ToDecimal(gdTotalPayout) * (0.7))
+            .AddWithValue("@p2", Convert.ToDecimal(txtWeight.Text))
+            .AddWithValue("@p3", CInt(ddlSawyer.SelectedValue))
+        End With
+
+        ‘Connection stuff 
+        Try
+            If con.State = ConnectionState.Closed Then con.Open()
+            cmdUpdateSawyer.ExecuteNonQuery()
+        Catch ex As Exception
+            Response.Write(ex.Message)
+        Finally
+            con.Close()
+        End Try
+
+    End Sub
+#End Region
+
+#Region "Link Buttons"
+    'this whole region contains the code for the link buttons so we can switch through views
+    Protected Sub lnkTrucker_Click(sender As Object, e As EventArgs) Handles lnkTrucker.Click
+        MultiView1.ActiveViewIndex = 3
+
+        dtTruckers.Rows.Clear()
+        daSawyers.Fill(dtSawyers)
+        GridView2.DataSource = dtSawyers
+        GridView2.DataBind()
+
+
+    End Sub
+
+    Protected Sub lnkSawyer_Click(sender As Object, e As EventArgs) Handles lnkSawyer.Click
+        MultiView1.ActiveViewIndex = 4
+
+        dtSawyers.Rows.Clear()
+        daSawyers.Fill(dtSawyers)
+        GridView2.DataSource = dtSawyers
+        GridView2.DataBind()
+    End Sub
+
+    Protected Sub lnkDelivery_Click(sender As Object, e As EventArgs) Handles lnkDelivery.Click
+        MultiView1.ActiveViewIndex = 2
+    End Sub
+#End Region
+
+#Region "Deliveries"
+    Protected Sub btnEnterD_Click(sender As Object, e As EventArgs) Handles btnEnterD.Click
+
+        'Error checking for deliveries
+        If ddlTrucker.SelectedIndex < 0 OrElse ddlSawyer.SelectedIndex < 0 Then
+            txtOutput.Text = "Please Review Submission"
+        End If
+
+        If txtWeight.Text = Nothing OrElse txtDDate.Text = Nothing Then
+            txtOutput.Text = "Please Review Submission"
+        End If
+
+        Dim dr As DataRow = dtDelivery.NewRow
+
+        Dim TruckerPayout As Decimal
+        Dim SawyerPayout As Decimal
+
+
+        'payout Calculations
+        gdTotalPayout = (txtWeight.Text) * ddlLumber.SelectedValue
+        TruckerPayout = gdTotalPayout * (0.3)
+        SawyerPayout = gdTotalPayout * (0.7)
+
+        If chkVIP.Checked = True Then
+            TruckerPayout += TruckerPayout + (0.01 * TruckerPayout)
+        End If
+
+        dr.Item("DeliveryDate") = DateTime.Parse(txtDDate.Text)
+        dr.Item("LumberType") = ddlLumber.SelectedItem.Text
+        dr.Item("DeliveryWeight") = txtWeight.Text
+        dr.Item("TruckerID") = ddlTrucker.SelectedValue
+        dr.Item("SawyerID") = ddlSawyer.SelectedValue
+        dr.Item("TruckerPayout") = TruckerPayout
+        dr.Item("SawyerPayout") = SawyerPayout
+
+        dtDelivery.Rows.Add(dr)
+
+
+        dtDelivery.Rows.Clear()
+        daDelivery.Fill(dtDelivery)
+        GridView1.DataSource = dtDelivery
+        GridView1.DataBind()
+
+        Try
+            daDelivery.Update(dtDelivery) 'updates the truckers and sawyers with the info from the delivery
+            Call UpdateTrucker()
+            Call UpdateSawyers()
+
+
+
+
+        Catch ex As Exception
+            Response.Write(ex.Message)
+        End Try
+        'output for user to see 
+        txtOutput.Text = "Total Payout: " & gdTotalPayout & vbNewLine & "Trucker Payout: " & TruckerPayout & vbNewLine & "Sawyer Payout: " & SawyerPayout & vbNewLine & "VIP Trucker:" & chkVIP.Checked & vbNewLine & "Have a nice day!"
+    End Sub
+
+#End Region
+#Region "Clear Buttons"
+    'this whole region contains clear buttons for the individual sections 
+    Protected Sub btnClearD_Click(sender As Object, e As EventArgs) Handles btnClearD.Click
+        txtWeight.Text = Nothing
+        txtDDate.Text = Nothing
+        txtOutput.Text = Nothing
+
+    End Sub
+
+    Protected Sub btnClear_Click(sender As Object, e As EventArgs) Handles btnClear.Click
+        txtTruckerName.Text = Nothing
+        txtTruckerDate.Text = Nothing
+        txtTruckerPhone.Text = Nothing
+        txtTruckerRemarks.Text = Nothing
+
+
+    End Sub
+
+    Protected Sub btnClearSawyers_Click(sender As Object, e As EventArgs) Handles btnClearSawyers.Click
+        txtSawyerName.Text = Nothing
+        txtSawyerDate.Text = Nothing
+        txtSawyerPhone.Text = Nothing
+        txtSawyerRemarks.Text = Nothing
+    End Sub
+#End Region
+
+#Region "More LinkButtons"
+
+    Protected Sub lnkEditT_Click(sender As Object, e As EventArgs) Handles lnkEditT.Click
+        MultiView1.ActiveViewIndex = 0
+
+        ddlUpdateT.DataBind()
+        'ddlUpdateT.SelectedIndex = 0
+
+        dtTruckers.Rows.Clear()
+        daTruckers.Fill(dtTruckers)
+
+        txtUpdateTName.Text = dtTruckers.Rows(0).Item("TruckerName").ToString
+        txtUpdateTPhone.Text = dtTruckers.Rows(0).Item("Phone").ToString
+        txtUpdateTRemarks.Text = dtTruckers.Rows(0).Item("Remarks").ToString
+        txtMailT.Text = dtTruckers.Rows(0).Item("MailingAddress").ToString
+        txtCityT.Text = dtTruckers.Rows(0).Item("City").ToString
+        txtStateT.Text = dtTruckers.Rows(0).Item("State").ToString
+
+
+
+    End Sub
+
+    Protected Sub lnkEditS_Click(sender As Object, e As EventArgs) Handles lnkEditS.Click
+        MultiView1.ActiveViewIndex = 1
+
+        ddlUpdateS.DataBind()
+        ddlUpdateS.SelectedIndex = 0
+
+        dtSawyers.Rows.Clear()
+        daSawyers.Fill(dtSawyers)
+
+        txtUpdateSName.Text = dtSawyers.Rows(0).Item("SawyerName").ToString
+        txtUpdateSPhone.Text = dtSawyers.Rows(0).Item("Phone").ToString
+        txtUpdateSRemarks.Text = dtSawyers.Rows(0).Item("Remarks").ToString
+        txtMailS.Text = dtSawyers.Rows(0).Item("MailingAddress").ToString
+        txtCityS.Text = dtSawyers.Rows(0).Item("City").ToString
+        txtStateS.Text = dtSawyers.Rows(0).Item("State").ToString
+
+
+
+    End Sub
+#End Region
+
+
+#Region "Enter Trucker and Sawyer Demogrpahics"
+    Protected Sub btnUpdate_Click(sender As Object, e As EventArgs) Handles btnUpdate.Click
+        If txtUpdateTName.Text.Trim.Length = 0 Then
+            txtOutputUpdateT.Text = "Name Error"
+            Exit Sub
+        End If
+
+        Dim Name As String = txtUpdateTName.Text
+        Dim Number As String = txtUpdateTPhone.Text
+        Dim Remarks As String = txtUpdateTRemarks.Text
+        Dim Address As String = txtMailT.Text
+        Dim City As String = txtCityT.Text
+        Dim State As String = txtStateT.Text
+        Dim TruckerID As Integer = ddlUpdateT.SelectedValue
+
+        Dim cmdChangeTrucker As New SqlCommand("UPDATE henrylevis.Truck SET TruckerName = @p1, Phone = @p2, Remarks = @p3, MailingAddress = @p4, City = @p5, State = @p6 WHERE TruckerID = @p7", con)
+
+        With cmdChangeTrucker.Parameters
+            .Clear()
+            .AddWithValue("@p1", Name)
+            .AddWithValue("@p2", Number)
+            .AddWithValue("@p3", Remarks)
+            .AddWithValue("@p4", Address)
+            .AddWithValue("@p5", City)
+            .AddWithValue("@p6", State)
+            .AddWithValue("@p7", TruckerID)
+        End With
+
+        Try
+            If con.State = ConnectionState.Closed Then con.Open()
+            cmdChangeTrucker.ExecuteNonQuery()
+        Catch ex As Exception
+            txtOutputUpdateT.Text = ex.Message
+        Finally
+            con.Close()
+        End Try
+    End Sub
+    Protected Sub btnUpdateS_Click(sender As Object, e As EventArgs) Handles btnUpdate.Click
+
+        If txtUpdateSName.Text.Trim.Length = 0 Then
+            txtOutputUpdateS.Text = "Name Error"
+            Exit Sub
+        End If
+
+        Dim Name As String = txtUpdateSName.Text
+        Dim Number As String = txtUpdateSPhone.Text
+        Dim Remarks As String = txtUpdateSRemarks.Text
+        Dim Address As String = txtMailS.Text
+        Dim City As String = txtCityS.Text
+        Dim State As String = txtStateS.Text
+        Dim TruckerID As Integer = ddlUpdateS.SelectedValue
+
+        Dim cmdChangeSawyer As New SqlCommand("UPDATE henrylevis.Saw SET SawyerName = @p1, Phone = @p2, Remarks = @p3, MailingAddress = @p4, City = @p5, State = @p6 WHERE SawyerID = @p7", con)
+
+        With cmdChangeSawyer.Parameters
+            .Clear()
+            .AddWithValue("@p1", Name)
+            .AddWithValue("@p2", Number)
+            .AddWithValue("@p3", Remarks)
+            .AddWithValue("@p4", Address)
+            .AddWithValue("@p5", City)
+            .AddWithValue("@p6", State)
+            .AddWithValue("@p7", TruckerID)
+        End With
+
+        Try
+            If con.State = ConnectionState.Closed Then con.Open()
+            cmdChangeSawyer.ExecuteNonQuery()
+        Catch ex As Exception
+            txtOutputUpdateT.Text = ex.Message
+        Finally
+            con.Close()
+        End Try
+
+    End Sub
+
+
+#End Region
+#Region "Filling Information"
+
+    Protected Sub ddlUpdateT_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ddlUpdateT.SelectedIndexChanged
+        dtTruckers.Rows.Clear()
+        daTruckers.Fill(dtTruckers)
+
+        txtUpdateTName.Text = dtTruckers.Rows(ddlUpdateT.SelectedValue - 1).Item("TruckerName").ToString
+        txtUpdateTPhone.Text = dtTruckers.Rows(ddlUpdateT.SelectedValue - 1).Item("Phone").ToString
+        txtUpdateTRemarks.Text = dtTruckers.Rows(ddlUpdateT.SelectedValue - 1).Item("Remarks").ToString
+        txtMailT.Text = dtTruckers.Rows(ddlUpdateT.SelectedValue - 1).Item("MailingAddress").ToString
+        txtCityT.Text = dtTruckers.Rows(ddlUpdateT.SelectedValue - 1).Item("City").ToString
+        txtStateT.Text = dtTruckers.Rows(ddlUpdateT.SelectedValue - 1).Item("State").ToString
+
+
+
+
+    End Sub
+
+    Protected Sub ddlUpdateS_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ddlUpdateS.SelectedIndexChanged
+
+        txtUpdateSName.Text = dtSawyers.Rows(ddlUpdateS.SelectedValue - 1).Item("SawyerName").ToString
+        txtUpdateSPhone.Text = dtSawyers.Rows(ddlUpdateS.SelectedValue - 1).Item("Phone").ToString
+        txtUpdateSRemarks.Text = dtSawyers.Rows(ddlUpdateS.SelectedValue - 1).Item("Remarks").ToString
+        txtMailS.Text = dtSawyers.Rows(ddlUpdateS.SelectedValue - 1).Item("MailingAddress").ToString
+        txtCityS.Text = dtSawyers.Rows(ddlUpdateS.SelectedValue - 1).Item("City").ToString
+        txtStateS.Text = dtSawyers.Rows(ddlUpdateS.SelectedValue - 1).Item("State").ToString
+    End Sub
+
+#End Region
+
+End Class
+
