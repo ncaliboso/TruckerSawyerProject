@@ -1,1 +1,1 @@
-# TruckerSawyerProject
+VB .NET web application for managing a lumber business, including truckers, sawyers, and lumber deliveries. The code connects to a SQL Server database to retrieve and update data. There are three linkviews that allow user to enter and submit trucker, sawyer and delivery information, which then updates the global data.
